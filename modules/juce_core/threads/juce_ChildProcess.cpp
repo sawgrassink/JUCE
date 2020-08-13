@@ -36,6 +36,12 @@ int ChildProcess::readProcessOutput (void* dest, int numBytes)
     return activeProcess != nullptr ? activeProcess->read (dest, numBytes) : 0;
 }
 
+int ChildProcess::writeToProcess(void* src, int numBytes)
+{
+    return activeProcess != nullptr ? activeProcess->write(src, numBytes) : 0;
+}
+
+
 bool ChildProcess::kill()
 {
     return activeProcess == nullptr || activeProcess->killProcess();

@@ -465,6 +465,42 @@ public:
         return total;
     }
 
+    int write(void* src, int numNeeded) const noexcept
+    {
+        int total = 0;
+
+        while (ok && numNeeded > 0)
+        {
+            DWORD available = 0;
+
+            if (!PeekNamedPipe((HANDLE)writePipe, nullptr, 0, nullptr, &available, nullptr))
+                break;
+
+            const int numToDo = jmin((int)available, numNeeded);
+
+            if (available == 0)
+            {
+                if (!isRunning())
+                    break;
+
+                Thread::yield();
+            }
+            else
+            {
+                DWORD numWritten = 0;
+                if (!WriteFile((HANDLE)readPipe, src, (DWORD)numToDo, &numWritten, nullptr))
+                    break;
+
+                total += (int)numWritten;
+                src = addBytesToPointer(src, numWritten);
+                numNeeded -= (int)numWritten;
+            }
+        }
+
+        return total;
+    }
+
+
     bool killProcess() const noexcept
     {
         return TerminateProcess (processInfo.hProcess, 0) != FALSE;
