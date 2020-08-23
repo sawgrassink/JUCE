@@ -85,6 +85,7 @@ public:
     int readProcessOutput (void* destBuffer, int numBytesToRead);
 
     int writeToProcess(void* srcBuffer, int numBytesToWrite);
+    void flushAndCloseWriteHandle();
 
     /** Blocks until the process has finished, and then returns its complete output
         as a string.

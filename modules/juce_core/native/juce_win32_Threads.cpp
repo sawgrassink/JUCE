@@ -394,8 +394,10 @@ public:
         securityAtts.nLength = sizeof (securityAtts);
         securityAtts.bInheritHandle = TRUE;
 
-        if (CreatePipe (&readPipe, &writePipe, &securityAtts, 0)
-             && SetHandleInformation (readPipe, HANDLE_FLAG_INHERIT, 0))
+        if (CreatePipe(&readPipe, &writePipe, &securityAtts, 0)
+            && SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0)
+            && SetHandleInformation(writePipe, 0, 0)
+            )
         {
             STARTUPINFOW startupInfo = {};
             startupInfo.cb = sizeof (startupInfo);
@@ -407,7 +409,9 @@ public:
             ok = CreateProcess (nullptr, const_cast<LPWSTR> (command.toWideCharPointer()),
                                 nullptr, nullptr, TRUE, CREATE_NO_WINDOW | CREATE_UNICODE_ENVIRONMENT,
                                 nullptr, nullptr, &startupInfo, &processInfo) != FALSE;
+            jassert(ok);
         }
+        else jassertfalse;
     }
 
     ~ActiveProcess()
@@ -465,39 +469,32 @@ public:
         return total;
     }
 
-    int write(void* src, int numNeeded) const noexcept
+    int write(void* src, int bytesToWrite) const noexcept
     {
-        int total = 0;
+        if (!writePipe)
+            return 0;
+        if (!src)
+            return 0;
 
-        while (ok && numNeeded > 0)
+        int totalWritten = 0;
+        while (bytesToWrite > 0)
         {
-            DWORD available = 0;
+            DWORD numWritten = 0;
+            if (!WriteFile((HANDLE)writePipe, (char*)src+totalWritten, (DWORD)juce::jmin(512, bytesToWrite), &numWritten, nullptr))
+                return totalWritten;
 
-            if (!PeekNamedPipe((HANDLE)writePipe, nullptr, 0, nullptr, &available, nullptr))
-                break;
-
-            const int numToDo = jmin((int)available, numNeeded);
-
-            if (available == 0)
-            {
-                if (!isRunning())
-                    break;
-
-                Thread::yield();
-            }
-            else
-            {
-                DWORD numWritten = 0;
-                if (!WriteFile((HANDLE)readPipe, src, (DWORD)numToDo, &numWritten, nullptr))
-                    break;
-
-                total += (int)numWritten;
-                src = addBytesToPointer(src, numWritten);
-                numNeeded -= (int)numWritten;
-            }
+            bytesToWrite -= numWritten;
+            totalWritten += numWritten;
         }
 
-        return total;
+        return totalWritten;
+    }
+
+    void flushAndCloseWriteHandle()
+    {
+        FlushFileBuffers(writePipe);
+        CloseHandle(writePipe);
+        writePipe = nullptr;
     }
 
 
